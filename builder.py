@@ -56,16 +56,19 @@ Exploring the repository
 
 	username = os.path.basename(userdir)
 
+	os.makedirs(os.path.join(userdir, 'logs'))
+	logfile = open(os.path.join(userdir, username) + 'first.log', 'w+')
+
 	with open(os.path.join(userdir, 'build.json')) as data_file: 
 		if data_file:   
 			data = json.load(data_file)
 		else:
+			print("automatic check is not supported by this repo", file=logfile)
 			client_connection.sendto("automatic check is not supported by this repo".encode(),(HOST, PORT))
-			exit	
 
 	lang = data["lang"]
 	if not lang in ["lang_C", "lang_C++"]:
-		print("language is not supported")
+		print("language is not supported", file=logfile)
 
 	## проверять флаги
 	flags = data["flags"]
@@ -74,16 +77,14 @@ Exploring the repository
 	appversion = data["app-version"]
 	appbuild = data["app-build"]
 
-	os.makedirs(os.path.join(userdir, 'logs'))
-
-	zipf = zipfile.ZipFile(username + time.strftime("%Y%m%d%H%M%S")+ '.zip', 'w', zipfile.ZIP_DEFLATED)
+	zipf = zipfile.ZipFile(os.path.join(userdir, username + '.zip'), 'w', zipfile.ZIP_DEFLATEDи)
 	http_response = ''
 	for f in files:	
 		logfile = open(os.path.join(userdir, f) + '.log', 'w+')
-		subprocess.run(['gcc', cflags.split(' '), os.path.join(userdir, f)], stdout=logfile, stderr=logfile)
+		subprocess.run(['gcc', cflags.split(' '), flags, os.path.join(userdir, f)], stdout=logfile, stderr=logfile)
 		http_response = http_response + f + ' compiled'
+		zipf.write(os.path.join(userdir, f) + '.log')
 		logfile.close()
-		zipf.write(os.path.join(userdir, f))
 
 	zipf.close()
 	print(http_response)
