@@ -29,6 +29,9 @@ while True:
 
 	gitrepo = ''.join(gitrepo)
 
+	if not gitrepo:
+		continue
+
 	reponame = os.path.basename(gitrepo)
 	print(gitrepo)
 
@@ -73,11 +76,11 @@ Exploring the repository
 
 	os.makedirs(os.path.join(userdir, 'logs'))
 
-	zipf = zipfile.ZipFile(username + '.zip', 'w', zipfile.ZIP_DEFLATED)
+	zipf = zipfile.ZipFile(username + time.strftime("%Y%m%d%H%M%S")+ '.zip', 'w', zipfile.ZIP_DEFLATED)
 	http_response = ''
 	for f in files:	
 		logfile = open(os.path.join(userdir, f) + '.log', 'w+')
-		subprocess.run(['gcc', cflags.split(' '), flags, os.path.join(userdir, f)], stdout=logfile, stderr=logfile)
+		subprocess.run(['gcc', cflags.split(' '), os.path.join(userdir, f)], stdout=logfile, stderr=logfile)
 		http_response = http_response + f + ' compiled'
 		logfile.close()
 		zipf.write(os.path.join(userdir, f))
