@@ -15,7 +15,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
 
 		url = self.path[1:]
 		repodir =  gitget(url)
-		message = build(repodir)
+		message = trytobuild(repodir)
 		
 		self.wfile.write(bytes(message, "utf8"))
 		return
@@ -35,16 +35,15 @@ def gitget(url):
 	origin.pull()
 	return repodir
 
-def build(repodir):
+def trytobuild(repodir):
 	cflags = ['--std=c89 ', '-Wall ', '-Werror']
 
 	print(repodir)
-	for userdirs, _, _ in os.walk(repodir):
-		userdir = userdirs
+	for _, userdirs, _ in os.walk(repodir):
+		username = userdirs[1] ## системно-зависимо
+		break
 
-	username = os.path.basename(userdir)
-
-	with open(os.path.join(userdir, 'build.json')) as data_file: 
+	with open(os.path.join(repodir, username, 'build.json')) as data_file: 
 		if data_file:   
 			data = json.load(data_file)
 		else:
@@ -63,7 +62,7 @@ def build(repodir):
 
 	result = ''	
 	for f in files:
-		proc = subprocess.Popen(['gcc', cflags, os.path.join(userdir, f)], stderr=subprocess.PIPE)
+		proc = subprocess.Popen(['gcc', cflags, os.path.join(repodir, username, f)], stderr=subprocess.PIPE)
 		output = proc.stderr.read().decode()
 		result = result + '\n' + f + '\n' + output
 
