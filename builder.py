@@ -1,74 +1,58 @@
-import socket
-import git
+import http.server
 import os
-import json
 import subprocess
 import time
-import zipfile
+import json
+import git
 
-HOST, PORT = '', 8888
-listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-listen_socket.bind((HOST, PORT))
-listen_socket.listen(1)
-gitrepo = []
+class RequestHandler(http.server.BaseHTTPRequestHandler):
+	def do_GET(self):
+		# Send response status code
+		self.send_response(200)
+		# Send headers
+		self.send_header('Content-type','text/html')
+		self.end_headers()
 
-cflags = '--std=c89 -Wall -Werror'
+		url = self.path[1:]
+		repodir =  gitget(url)
+		message = build(repodir)
+		
+		self.wfile.write(bytes(message, "utf8"))
+		return
 
-print('Serving HTTP on port', PORT)
+def run(server_class=http.server.HTTPServer, handler_class=RequestHandler):
+    server_address = ('', 8000)
+    httpd = server_class(server_address, handler_class)
+    httpd.serve_forever()
 
-while True:
-	client_connection, client_address = listen_socket.accept()
-	request = client_connection.recv(1024).decode()
-	print(request)
-	i = 5
-
-	while (request[i] != ' '):
-		gitrepo.append(request[i])
-		i += 1
-
-	gitrepo = ''.join(gitrepo)
-
-	if not gitrepo:
-		continue
-
-	reponame = os.path.basename(gitrepo)
-	print(gitrepo)
-
+def gitget(url):
+	reponame = os.path.basename(url)
 	repodir = os.path.join(os.getcwd(), reponame + time.strftime("%Y%m%d%H%M%S"))
-
 	repo = git.Repo.init(repodir)
-	origin = repo.create_remote('origin', gitrepo)
+	origin = repo.create_remote('origin', url)
 	origin.fetch()
 	repo.create_head('master', origin.refs.master).set_tracking_branch(origin.refs.master).checkout()
 	origin.pull()
+	return repodir
 
-	http_response = """\
-HTTP/1.1 200 OK
+def build(repodir):
+	cflags = ['--std=c89 ', '-Wall ', '-Werror']
 
-Hello, world!
-Exploring the repository
-"""
-	client_connection.sendto(http_response.encode(),(HOST, PORT))
-
+	print(repodir)
 	for userdirs, _, _ in os.walk(repodir):
 		userdir = userdirs
 
 	username = os.path.basename(userdir)
 
-	os.makedirs(os.path.join(userdir, 'logs'))
-	logfile = open(os.path.join(userdir, username) + 'first.log', 'w+')
-
 	with open(os.path.join(userdir, 'build.json')) as data_file: 
 		if data_file:   
 			data = json.load(data_file)
 		else:
-			print("automatic check is not supported by this repo", file=logfile)
-			client_connection.sendto("automatic check is not supported by this repo".encode(),(HOST, PORT))
+			return 1 ## automatic check is not supported by this repo
 
 	lang = data["lang"]
 	if not lang in ["lang_C", "lang_C++"]:
-		print("language is not supported", file=logfile)
+		return 2 ## language is not supported
 
 	## проверять флаги
 	flags = data["flags"]
@@ -77,18 +61,12 @@ Exploring the repository
 	appversion = data["app-version"]
 	appbuild = data["app-build"]
 
-	zipf = zipfile.ZipFile(os.path.join(userdir, username + '.zip'), 'w', zipfile.ZIP_DEFLATEDи)
-	http_response = ''
-	for f in files:	
-		logfile = open(os.path.join(userdir, f) + '.log', 'w+')
-		subprocess.run(['gcc', cflags.split(' '), flags, os.path.join(userdir, f)], stdout=logfile, stderr=logfile)
-		http_response = http_response + f + ' compiled'
-		zipf.write(os.path.join(userdir, f) + '.log')
-		logfile.close()
+	result = ''	
+	for f in files:
+		proc = subprocess.Popen(['gcc', cflags, os.path.join(userdir, f)], stderr=subprocess.PIPE)
+		output = proc.stderr.read().decode()
+		result = result + '\n' + f + '\n' + output
 
-	zipf.close()
-	print(http_response)
-	client_connection.sendto(http_response.encode(),(HOST, PORT))
-	client_connection.close()
-	i = 0
-	gitrepo = []
+	return result
+
+run()
