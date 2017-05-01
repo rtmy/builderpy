@@ -17,7 +17,8 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
 		repodir =  gitget(url)
 		message = trytobuild(repodir)
 		
-		self.wfile.write(bytes(message, "utf8"))
+		for entry in message:
+			self.wfile.write(bytes(entry, "utf8"))
 		return
 
 def run(server_class=http.server.HTTPServer, handler_class=RequestHandler):
@@ -60,11 +61,11 @@ def trytobuild(repodir):
 	appversion = data["app-version"]
 	appbuild = data["app-build"]
 
-	result = ''	
+	result = []
 	for f in files:
 		proc = subprocess.Popen(['gcc', cflags, os.path.join(repodir, username, f)], stderr=subprocess.PIPE)
 		output = proc.stderr.read().decode()
-		result = result + '\n' + f + '\n' + output
+		result.append(f + ' ' + output)
 
 	return result
 
