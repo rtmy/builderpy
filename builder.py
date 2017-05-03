@@ -4,6 +4,7 @@ import subprocess
 import time
 import json
 import git
+import re
 
 class RequestHandler(http.server.BaseHTTPRequestHandler):
 	def do_GET(self):
@@ -12,13 +13,32 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
 		# Send headers
 		self.send_header('Content-type','text/html')
 		self.end_headers()
+		
+		path = self.path
+		pattern = re.compile("https:\/\/github\.com\/(?P<user>[A-z]+)\/(?P<repo>[A-z]+)")
 
-		url = self.path[1:]
+		match = pattern.match(path, 1)
+		if not match:
+			html_code = "<head> <meta charset=\"UTF-8\"> </head> \
+<body><p>Введите адрес на GitHub</p></body>"
+			self.wfile.write(bytes(html_code, "utf8"))
+			return
+
+		user = match.group('user')
+		repo = match.group('repo')
+
+		url = 'https://github.com/' + user + '/' + repo 
 		repodir =  gitget(url)
 		message = trytobuild(repodir)
 		
+		html_code = "<head> <meta charset=\"UTF-8\"> </head> \
+<body>"
+		self.wfile.write(bytes(html_code, "utf8"))
+
 		for entry in message:
-			self.wfile.write(bytes(entry, "utf8"))
+			self.wfile.write(bytes("<p>" + entry + "</p>", "utf8"))
+		html_code = "</body>"
+		self.wfile.write(bytes(html_code, "utf8"))
 		return
 
 def run(server_class=http.server.HTTPServer, handler_class=RequestHandler):
