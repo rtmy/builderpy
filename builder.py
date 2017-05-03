@@ -28,7 +28,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
 		repo = match.group('repo')
 
 		url = 'https://github.com/' + user + '/' + repo 
-		repodir =  gitget(url)
+		repodir = gitget(url)
 		message = trytobuild(repodir)
 		
 		html_code = "<head> <meta charset=\"UTF-8\"> </head> \
@@ -67,14 +67,24 @@ def trytobuild(repodir):
 		if data_file:   
 			data = json.load(data_file)
 		else:
-			return 1 ## automatic check is not supported by this repo
+			return 'automatic check is not supported by this repo'
 
 	lang = data["lang"]
-	if not lang in ["lang_C", "lang_C++"]:
-		return 2 ## language is not supported
+	if lang == "lang_C":
+		gcc = 'gcc'
+	elif lang == "lang_C++":
+		gcc = 'g++'
+	else:
+		return 'language is not supported'
 
 	## проверять флаги
 	flags = data["flags"]
+	for flag in flags:
+		if flag not in cflags:
+			cflags.append(flag)
+		else:
+			return 'flag overriding is not allowed'
+
 	files = data["files"]
 	formatversion = data["format-version"]
 	appversion = data["app-version"]
@@ -82,7 +92,7 @@ def trytobuild(repodir):
 
 	result = []
 	for f in files:
-		proc = subprocess.Popen(['gcc', *cflags, os.path.join(repodir, username, f)], stderr=subprocess.PIPE)
+		proc = subprocess.Popen([gcc, *cflags, os.path.join(repodir, username, f)], stderr=subprocess.PIPE)
 		output = proc.stderr.read().decode()
 		result.append(f + ' ' + output)
 
