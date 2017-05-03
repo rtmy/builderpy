@@ -57,12 +57,11 @@ def gitget(url):
 	return repodir
 
 def trytobuild(repodir):
-	cflags = ['--std=c89 ', '-Wall ', '-Werror']
+	cflags = ['--std=c89', '-Wall', '-Werror']
 
-	print(repodir)
-	for _, userdirs, _ in os.walk(repodir):
-		username = userdirs[1] ## системно-зависимо
-		break
+	for dir in next(os.walk(repodir))[1]:
+		if dir != '.git':
+			username = dir
 
 	with open(os.path.join(repodir, username, 'build.json')) as data_file: 
 		if data_file:   
@@ -83,7 +82,7 @@ def trytobuild(repodir):
 
 	result = []
 	for f in files:
-		proc = subprocess.Popen(['gcc', cflags, os.path.join(repodir, username, f)], stderr=subprocess.PIPE)
+		proc = subprocess.Popen(['gcc', *cflags, os.path.join(repodir, username, f)], stderr=subprocess.PIPE)
 		output = proc.stderr.read().decode()
 		result.append(f + ' ' + output)
 
