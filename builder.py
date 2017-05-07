@@ -6,39 +6,49 @@ import json
 import git
 import re
 
-class RequestHandler(http.server.BaseHTTPRequestHandler):
+class RequestHandler(http.server.CGIHTTPRequestHandler):
 	def do_GET(self):
-		# Send response status code
 		self.send_response(200)
-		# Send headers
-		self.send_header('Content-type','text/html')
+		self.send_header('Content-type', 'text/html')
 		self.end_headers()
-		
-		path = self.path
+
+		self.wfile.write(bytes('Please send POST', 'utf8'))
+		pass
+	def do_POST(self):
+		# Send response status
+		self.send_response(200)		
+
+		self.send_header('Content-type','application/json')
+		self.end_headers()
+
+		action = self.headers["type-action"]
+		repository = self.headers["repository"]
+
+		print(repository)
 		pattern = re.compile("https:\/\/github\.com\/(?P<user>[A-z]+)\/(?P<repo>[A-z]+)")
 
-		match = pattern.match(path, 1)
-		if not match:
-			html_code = "<head> <meta charset=\"UTF-8\"> </head> \
-<body><p>Введите адрес на GitHub</p></body>"
-			self.wfile.write(bytes(html_code, "utf8"))
-			return
+		match = pattern.match(repository)
 
 		user = match.group('user')
 		repo = match.group('repo')
 
-		url = 'https://github.com/' + user + '/' + repo 
-		repodir = gitget(url)
-		message = trytobuild(repodir)
-		
-		html_code = "<head> <meta charset=\"UTF-8\"> </head> \
-<body>"
-		self.wfile.write(bytes(html_code, "utf8"))
+		if not match:
+			output = {'status':'error', 'content':{'text':'repo url is not compatible'}}
+		elif action == "build":
+			url = 'https://github.com/' + user + '/' + repo 
+			repodir = gitget(url)
+			output = build(repodir)
+		elif action == "retrieve":
+			print('retrieve')
+			output = retrieve(repo)
+		else:
+			output = {'status':'error', 'content':{'text':'requested action is unknown'}}
 
-		for entry in message:
-			self.wfile.write(bytes("<p>" + entry + "</p>", "utf8"))
-		html_code = "</body>"
-		self.wfile.write(bytes(html_code, "utf8"))
+		encoder = json.JSONEncoder()
+		output = encoder.encode(output)
+
+		self.wfile.write(bytes(output, "utf8"))
+		print('sent')
 		return
 
 def run(server_class=http.server.HTTPServer, handler_class=RequestHandler):
@@ -56,7 +66,7 @@ def gitget(url):
 	origin.pull()
 	return repodir
 
-def trytobuild(repodir):
+def build(repodir):
 	cflags = ['--std=c89', '-Wall', '-Werror']
 
 	for dir in next(os.walk(repodir))[1]:
@@ -67,7 +77,7 @@ def trytobuild(repodir):
 		if data_file:   
 			data = json.load(data_file)
 		else:
-			return 'automatic check is not supported by this repo'
+			return {'status':'error', 'content':{'text':'automatic check is not supported by this repo'}}
 
 	lang = data["lang"]
 	if lang == "lang_C":
@@ -75,7 +85,7 @@ def trytobuild(repodir):
 	elif lang == "lang_C++":
 		gcc = 'g++'
 	else:
-		return 'language is not supported'
+		return {'status':'error', 'content':{'text':'language is not supported'}}
 
 	## проверять флаги
 	flags = data["flags"]
@@ -83,19 +93,44 @@ def trytobuild(repodir):
 		if flag not in cflags:
 			cflags.append(flag)
 		else:
-			return 'flag overriding is not allowed'
+			return {'status':'error', 'content':{'text':'flag overriding is not allowed'}}
 
 	files = data["files"]
 	formatversion = data["format-version"]
 	appversion = data["app-version"]
 	appbuild = data["app-build"]
 
+	if not os.path.exists('logs'):
+		os.makedirs('logs')
+
 	result = []
+	logfile = open(os.path.join('logs', os.path.basename(repodir))+'.log', "wb")
 	for f in files:
 		proc = subprocess.Popen([gcc, *cflags, os.path.join(repodir, username, f)], stderr=subprocess.PIPE)
 		output = proc.stderr.read().decode()
-		result.append(f + ' ' + output)
+		result.append({"filename":f, "output":output})
 
-	return result
+	result = json.dumps(result)
+	logfile.write(bytes(result, "utf8"))
+	logfile.close()
+	return {'status':'ok', 'content':{'text':'...'}}
+
+def retrieve(reponame, date='latest'):
+	for filename in next(os.walk('logs'))[2]:
+		print(filename)
+		if reponame in filename:
+			logfile = filename
+
+	try:
+		logfile
+	except NameError: ## ??!?
+		return {'status':'error', 'content':{'text':'logfile not found'}}
+
+	logfile = open(os.path.join('logs', 	logfile))
+	output =  logfile.read()
+	logfile.close()
+	return {'status':'ok', 'content':{'filename':filename, 'text':output}}
+
+	pass
 
 run()
