@@ -13,9 +13,7 @@ class RequestHandler(http.server.CGIHTTPRequestHandler):
 		self.end_headers()
 
 		self.wfile.write(bytes('Please send POST', 'utf8'))
-		pass
 	def do_POST(self):
-		# Send response status
 		self.send_response(200)		
 
 		self.send_header('Content-type','application/json')
@@ -56,17 +54,28 @@ def run(server_class=http.server.HTTPServer, handler_class=RequestHandler):
     httpd = server_class(server_address, handler_class)
     httpd.serve_forever()
 
-def gitget(url):
-	reponame = os.path.basename(url)
+def gitget(URL):
+	'''Git fetch and pull.
+
+       This function purpose is to download \
+       repository content using provided URL.
+       Returns path where is repository pulled, \
+       string.'''
+	reponame = os.path.basename(URL)
 	repodir = os.path.join(os.getcwd(), reponame + time.strftime("%Y%m%d%H%M%S"))
 	repo = git.Repo.init(repodir)
-	origin = repo.create_remote('origin', url)
+	origin = repo.create_remote('origin', URL)
 	origin.fetch()
 	repo.create_head('master', origin.refs.master).set_tracking_branch(origin.refs.master).checkout()
 	origin.pull()
 	return repodir
 
 def build(repodir):
+	'''Repository basic check and build routines.
+
+       This function checks specifications file
+       options and tries to build each file.
+       Returns status and additional stuff.'''
 	cflags = ['--std=c89', '-Wall', '-Werror']
 
 	for dir in next(os.walk(repodir))[1]:
@@ -87,7 +96,6 @@ def build(repodir):
 	else:
 		return {'status':'error', 'content':{'text':'language is not supported'}}
 
-	## проверять флаги
 	flags = data["flags"]
 	for flag in flags:
 		if flag not in cflags:
@@ -116,6 +124,15 @@ def build(repodir):
 	return {'status':'ok', 'content':{'text':'...'}}
 
 def retrieve(reponame, date='latest'):
+	'''Returns log.
+
+       This function checks if there is \
+       a log file on disk and returns its content \
+       as JSON.'''
+
+	if not os.path.exists('logs'):
+		return {'status':'error', 'content':{'text':'logfile not found'}}
+
 	for filename in next(os.walk('logs'))[2]:
 		print(filename)
 		if reponame in filename:
@@ -126,7 +143,7 @@ def retrieve(reponame, date='latest'):
 	except NameError: ## ??!?
 		return {'status':'error', 'content':{'text':'logfile not found'}}
 
-	logfile = open(os.path.join('logs', 	logfile))
+	logfile = open(os.path.join('logs', logfile))
 	output =  logfile.read()
 	logfile.close()
 	return {'status':'ok', 'content':{'filename':filename, 'text':output}}
