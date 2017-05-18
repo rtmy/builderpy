@@ -5,6 +5,7 @@ import time
 import json
 import git
 import re
+import postgresql
 
 class RequestHandler(http.server.CGIHTTPRequestHandler):
 	def do_GET(self):
@@ -12,7 +13,7 @@ class RequestHandler(http.server.CGIHTTPRequestHandler):
 		self.send_header('Content-type', 'text/html')
 		self.end_headers()
 
-		self.wfile.write(bytes('Please send POST', 'utf8'))
+		self.wfile.write(bytes('{"status":"error", "content":{"text":"Please send POST"}}', "utf8"))
 	def do_POST(self):
 		# Send response status
 		self.send_response(200)		
@@ -62,9 +63,9 @@ class RequestHandler(http.server.CGIHTTPRequestHandler):
 		return
 
 def run(server_class=http.server.HTTPServer, handler_class=RequestHandler):
-    server_address = ('', 8000)
-    httpd = server_class(server_address, handler_class)
-    httpd.serve_forever()
+	server_address = ('', 8000)
+	httpd = server_class(server_address, handler_class)
+	httpd.serve_forever()
 
 def gitget(url):
 	reponame = os.path.basename(url)
@@ -78,17 +79,19 @@ def gitget(url):
 
 def build(repodir):
 	cflags = ['--std=c89', '-Wall', '-Werror']
-
+	global username
 	for dir in next(os.walk(repodir))[1]:
 		if dir != '.git':
 			username = dir
 
+	print(username)
 	with open(os.path.join(repodir, username, 'build.json')) as data_file: 
 		if data_file:   
 			data = json.load(data_file)
 		else:
 			return {'status':'error', 'content':{'text':'automatic check is not supported by this repo'}}
 
+	print(username)
 	lang = data["lang"]
 	if lang == "lang_C":
 		gcc = 'gcc'
@@ -120,9 +123,11 @@ def build(repodir):
 		output = proc.stderr.read().decode()
 		result.append({"filename":f, "output":output})
 
+	print(username)
 	result = json.dumps(result)
-	logfile.write(bytes(result, "utf8"))
-	logfile.close()
+	ins(username, time.strftime("%d %m %Y %H:%M:%S +0000", time.gmtime()), result)
+	## logfile.write(bytes(result, "utf8"))
+	## logfile.close()
 	return {'status':'ok', 'content':{'text':'...'}}
 
 def retrieve(reponame, date='latest'):
@@ -130,15 +135,16 @@ def retrieve(reponame, date='latest'):
 		print(filename)
 		if reponame in filename:
 			logfile = filename
-
 	try:
 		logfile
 	except NameError: ## ??!?
 		return {'status':'error', 'content':{'text':'logfile not found'}}
 
-	logfile = open(os.path.join('logs', 	logfile))
+	logfile = open(os.path.join('logs', logfile))
 	output =  logfile.read()
 	logfile.close()
 	return {'status':'ok', 'content':{'filename':filename, 'text':output}}
 
+db = postgresql.open('pq://builderpy:blogger@localhost/logs')
+ins = db.prepare("INSERT INTO logs (username, time, logs) VALUES ($1, $2, $3)")
 run()
