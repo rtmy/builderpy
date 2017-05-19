@@ -45,13 +45,21 @@ class RequestHandler(http.server.CGIHTTPRequestHandler):
 		user = match.group('user')
 		repo = match.group('repo')
 
+		
+		url = 'https://github.com/' + user + '/' + repo
+		if not db.query("select id from repositories where url = " + "\'" + url + "\'")[0][0]:
+			repoinsert(url)
+		 
+		repoid = db.query("select id from repositories where url = " + "\'" + url + "\'")[0][0] 
+		print(repoid)
 		if action == "build":
-			url = 'https://github.com/' + user + '/' + repo 
 			repodir = gitget(url)
-			output = build(repodir)
+			result = build(repodir)
+			loginsert(repoid, (int(time.time())), result)
+			output = {'status':'ok', 'content':{'text':'built'}}
 		elif action == "retrieve":
 			print('retrieve')
-			output = retrieve(repo)
+			output = retrieve(repoid)
 		else:
 			output = {'status':'error', 'content':{'text':'requested action is unknown'}}
 
@@ -75,23 +83,23 @@ def gitget(url):
 	origin.fetch()
 	repo.create_head('master', origin.refs.master).set_tracking_branch(origin.refs.master).checkout()
 	origin.pull()
-	return repodir
+	return repodir ## where cloned repository
 
 def build(repodir):
 	cflags = ['--std=c89', '-Wall', '-Werror']
-	global username
-	for dir in next(os.walk(repodir))[1]:
+	username = ''
+	for dir in next(os.walk(repodir))[1]: ## должно рабоать по-другому
 		if dir != '.git':
 			username = dir
+	if username == '':
+		return '{"status":"error", "content":{"text":"repo not compatible"}}'
 
-	print(username)
 	with open(os.path.join(repodir, username, 'build.json')) as data_file: 
 		if data_file:   
 			data = json.load(data_file)
 		else:
 			return {'status':'error', 'content':{'text':'automatic check is not supported by this repo'}}
 
-	print(username)
 	lang = data["lang"]
 	if lang == "lang_C":
 		gcc = 'gcc'
@@ -123,32 +131,18 @@ def build(repodir):
 		output = proc.stderr.read().decode()
 		result.append({"filename":f, "output":output})
 
-	print(username)
 	result = json.dumps(result)
-	## TODO: время в виде Unix Timestamp
-	ins(username, time.time(), result)
-	## logfile.write(bytes(result, "utf8"))
-	## logfile.close()
-	return {'status':'ok', 'content':{'text':'...'}}
+	return result
 
-def retrieve(reponame, date='latest'):
+def retrieve(repoid, date='latest'):
 	## TODO: переделать для работы с БД
-	for filename in next(os.walk('logs'))[2]:
-		print(filename)
-		if reponame in filename:
-			logfile = filename
-	try:
-		logfile
-	except NameError: ## ??!?
-		return {'status':'error', 'content':{'text':'logfile not found'}}
-
-	logfile = open(os.path.join('logs', logfile))
-	output =  logfile.read()
-	logfile.close()
-	return {'status':'ok', 'content':{'filename':filename, 'text':output}}
-
+	logs = db.query("SELECT log, datetime FROM logs where id = " + str(repoid)) ## нужно выбирать по-другому
+	if logs == []:
+		return {'status':'error', 'content':{'text':'no log for this repo found'}}
+	return {'status':'ok', 'content':{'datetime':str(logs[0][1]), 'text':logs[0][0]}}
 
 ## TODO: скрипт для разворачивания БД, проверка перед записью
 db = postgresql.open('pq://builderpy:blogger@localhost/logs')
-ins = db.prepare("INSERT INTO logs (username, time, logs) VALUES ($1, $2, $3)")
+loginsert = db.prepare("INSERT INTO logs (repoid, datetime, log) VALUES ($1, to_timestamp($2), $3)")
+repoinsert = db.prepare("insert into repositories (url) values ($1) returning id")
 run()
