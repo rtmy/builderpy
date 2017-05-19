@@ -125,12 +125,14 @@ def build(repodir):
 
 	print(username)
 	result = json.dumps(result)
-	ins(username, time.strftime("%d %m %Y %H:%M:%S +0000", time.gmtime()), result)
+	## TODO: время в виде Unix Timestamp
+	ins(username, time.time(), result)
 	## logfile.write(bytes(result, "utf8"))
 	## logfile.close()
 	return {'status':'ok', 'content':{'text':'...'}}
 
 def retrieve(reponame, date='latest'):
+	## TODO: переделать для работы с БД
 	for filename in next(os.walk('logs'))[2]:
 		print(filename)
 		if reponame in filename:
@@ -145,6 +147,8 @@ def retrieve(reponame, date='latest'):
 	logfile.close()
 	return {'status':'ok', 'content':{'filename':filename, 'text':output}}
 
+
+## TODO: скрипт для разворачивания БД, проверка перед записью
 db = postgresql.open('pq://builderpy:blogger@localhost/logs')
 ins = db.prepare("INSERT INTO logs (username, time, logs) VALUES ($1, $2, $3)")
 run()
