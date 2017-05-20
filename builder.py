@@ -1,5 +1,6 @@
 import http.server
 import os
+import sys
 import subprocess
 import time
 import json
@@ -15,7 +16,6 @@ class RequestHandler(http.server.CGIHTTPRequestHandler):
 
 		self.wfile.write(bytes('{"status":"error", "content":{"text":"Please send POST"}}', "utf8"))
 	def do_POST(self):
-		# Send response status
 		self.send_response(200)		
 
 		self.send_header('Content-type','application/json')
@@ -76,8 +76,10 @@ def run(server_class=http.server.HTTPServer, handler_class=RequestHandler):
 	httpd.serve_forever()
 
 def gitget(url):
+	if not os.path.exists('build'):
+		os.makedirs('build')
 	reponame = os.path.basename(url)
-	repodir = os.path.join(os.getcwd(), reponame + time.strftime("%Y%m%d%H%M%S"))
+	repodir = os.path.join(os.getcwd(), 'build', reponame + time.strftime("%Y%m%d%H%M%S"))
 	repo = git.Repo.init(repodir)
 	origin = repo.create_remote('origin', url)
 	origin.fetch()
@@ -121,11 +123,8 @@ def build(repodir):
 	appversion = data["app-version"]
 	appbuild = data["app-build"]
 
-	if not os.path.exists('logs'):
-		os.makedirs('logs')
 
 	result = []
-	logfile = open(os.path.join('logs', os.path.basename(repodir))+'.log', "wb")
 	for f in files:
 		proc = subprocess.Popen([gcc, *cflags, os.path.join(repodir, username, f)], stderr=subprocess.PIPE)
 		output = proc.stderr.read().decode()
@@ -135,14 +134,16 @@ def build(repodir):
 	return result
 
 def retrieve(repoid, date='latest'):
-	## TODO: переделать для работы с БД
-	logs = db.query("SELECT log, datetime FROM logs where id = " + str(repoid)) ## нужно выбирать по-другому
+	logs = db.query("SELECT log, datetime FROM logs where datetime in \
+	(select max (datetime) from logs where repoid = {});".format(str(repoid)))
 	if logs == []:
 		return {'status':'error', 'content':{'text':'no log for this repo found'}}
 	return {'status':'ok', 'content':{'datetime':str(logs[0][1]), 'text':logs[0][0]}}
 
-## TODO: скрипт для разворачивания БД, проверка перед записью
-db = postgresql.open('pq://builderpy:blogger@localhost/logs')
+if len(sys.argv) < 2:
+        print("{} pq://<username>:<password>@<host>/<db_name>".format(sys.argv[0]))
+        exit()
+db = postgresql.open(sys.argv[1])
 loginsert = db.prepare("INSERT INTO logs (repoid, datetime, log) VALUES ($1, to_timestamp($2), $3)")
 repoinsert = db.prepare("insert into repositories (url) values ($1) returning id")
 run()
