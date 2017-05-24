@@ -1,4 +1,3 @@
-import http.server
 import os
 import sys
 import subprocess
@@ -7,74 +6,48 @@ import json
 import git
 import re
 import postgresql
+from aiohttp import web
 
-class RequestHandler(http.server.CGIHTTPRequestHandler):
-	def do_GET(self):
-		self.send_response(200)
-		self.send_header('Content-type', 'text/html')
-		self.end_headers()
+async def do_GET(request):
+	return web.Response(text='please send post')
+async def do_POST(request):
+	data = await request.json()
+	print(request.headers)
+	action = data["type-action"]
+	repository = data["repository"]
 
-		self.wfile.write(bytes('{"status":"error", "content":{"text":"Please send POST"}}', "utf8"))
-	def do_POST(self):
-		self.send_response(200)		
+	if not action or not repository:
+		return web.json_response({"status":"error", "content":{"text":"post, please"}})
 
-		self.send_header('Content-type','application/json')
-		self.end_headers()
+	print(repository)
+	pattern = re.compile("https:\/\/github\.com\/(?P<user>[A-z]+)\/(?P<repo>[A-z]+)")
 
-		data = self.rfile.read(65535).decode()
-		print(data)
-		
-		contents = json.loads(data)
+	match = pattern.match(repository)
 
-		action = contents["type-action"]
-		repository = contents["repository"]
+	if not match:
+		return web.json_response({"status":"error", "content":{"text":"repo not compatible"}})
 
-		if not action or not repository:
-			self.wfile.write(bytes('{"status":"error", "content":{"text":"post, please"}}', "utf8"))
-			return
+	user = match.group('user')
+	repo = match.group('repo')
 
-		print(repository)
-		pattern = re.compile("https:\/\/github\.com\/(?P<user>[A-z]+)\/(?P<repo>[A-z]+)")
+	url = 'https://github.com/' + user + '/' + repo
+	if not db.query("select id from repositories where url = " + "\'" + url + "\'")[0][0]:
+		repoinsert(url)
+	 
+	repoid = db.query("select id from repositories where url = " + "\'" + url + "\'")[0][0] 
+	print(repoid)
+	if action == "build":
+		repodir = gitget(url)
+		result = build(repodir)
+		loginsert(repoid, (int(time.time())), result)
+		output = {'status':'ok', 'content':{'text':'built'}}
+	elif action == "retrieve":
+		print('retrieve')
+		output = retrieve(repoid)
+	else:
+		output = {'status':'error', 'content':{'text':'requested action is unknown'}}
 
-		match = pattern.match(repository)
-
-		if not match:
-			self.wfile.write(bytes('{"status":"error", "content":{"text":"repo not compatible"}}', "utf8"))
-			return
-
-		user = match.group('user')
-		repo = match.group('repo')
-
-		
-		url = 'https://github.com/' + user + '/' + repo
-		if not db.query("select id from repositories where url = " + "\'" + url + "\'")[0][0]:
-			repoinsert(url)
-		 
-		repoid = db.query("select id from repositories where url = " + "\'" + url + "\'")[0][0] 
-		print(repoid)
-		if action == "build":
-			repodir = gitget(url)
-			result = build(repodir)
-			loginsert(repoid, (int(time.time())), result)
-			output = {'status':'ok', 'content':{'text':'built'}}
-		elif action == "retrieve":
-			print('retrieve')
-			output = retrieve(repoid)
-		else:
-			output = {'status':'error', 'content':{'text':'requested action is unknown'}}
-
-		encoder = json.JSONEncoder()
-		output = encoder.encode(output)
-
-		self.wfile.write(bytes(output, "utf8"))
-		print('sent')
-		return
-
-def run(server_class=http.server.HTTPServer, handler_class=RequestHandler):
-	server_address = ('', 8000)
-	httpd = server_class(server_address, handler_class)
-	httpd.serve_forever()
-
+	return web.json_response(output)
 def gitget(url):
 	if not os.path.exists('build'):
 		os.makedirs('build')
@@ -94,7 +67,7 @@ def build(repodir):
 		if dir != '.git':
 			username = dir
 	if username == '':
-		return '{"status":"error", "content":{"text":"repo not compatible"}}'
+		return {"status":"error", "content":{"text":"repo not compatible"}}
 
 	with open(os.path.join(repodir, username, 'build.json')) as data_file: 
 		if data_file:   
@@ -140,10 +113,10 @@ def retrieve(repoid, date='latest'):
 		return {'status':'error', 'content':{'text':'no log for this repo found'}}
 	return {'status':'ok', 'content':{'datetime':str(logs[0][1]), 'text':logs[0][0]}}
 
-if len(sys.argv) < 2:
-        print("{} pq://<username>:<password>@<host>/<db_name>".format(sys.argv[0]))
-        exit()
-db = postgresql.open(sys.argv[1])
+db = postgresql.open("pq://builderpy:blogger@localhost/logs")
 loginsert = db.prepare("INSERT INTO logs (repoid, datetime, log) VALUES ($1, to_timestamp($2), $3)")
 repoinsert = db.prepare("insert into repositories (url) values ($1) returning id")
-run()
+app = web.Application()
+app.router.add_get('/', do_GET)
+app.router.add_post('/', do_POST)
+web.run_app(app)
