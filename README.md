@@ -8,8 +8,8 @@ git
 ## Установка:
 Для установки потребуется [pip](https://pip.pypa.io/en/stable/installing/) для Python 3
 
-`git clone https://github.com/rtmy/builderpy`
-`cd builderpy && pip3 install -r requrements.txt`
+`git clone https://github.com/rtmy/builderpy`  
+`cd builderpy && pip3 install -r requirements.txt`
 
 ## Как использовать:
 Запущенный сервер ожидает на порту 8000 HTTP POST запрос вида:

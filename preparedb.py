@@ -10,7 +10,7 @@ if len(sys.argv) < 2:
 database = sys.argv[1]
 db = postgresql.open(database)
 
-db.execute("drop sequence logs_id_sequence")
+db.execute("drop sequence if exists logs_id_sequence")
 db.execute("DROP TABLE if exists logs")
 db.execute("DROP TABLE if exists repositories")
 db.execute("create table repositories (id serial primary key, url text)")

@@ -31,14 +31,14 @@ async def do_POST(request):
 	repo = match.group('repo')
 
 	url = 'https://github.com/' + user + '/' + repo
-	if not db.query("select id from repositories where url = " + "\'" + url + "\'")[0][0]:
+	if not db.query("select id from repositories where url = " + "\'" + url + "\'"):
 		repoinsert(url)
 	 
 	repoid = db.query("select id from repositories where url = " + "\'" + url + "\'")[0][0] 
 	print(repoid)
 	if action == "build":
 		repodir = gitget(url)
-		result = build(repodir)
+		result = json.dumps(build(repodir))
 		loginsert(repoid, (int(time.time())), result)
 		output = {'status':'ok', 'content':{'text':'built'}}
 	elif action == "retrieve":
