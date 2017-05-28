@@ -2,11 +2,13 @@ import os
 import sys
 import subprocess
 import time
+import datetime
 import json
 import git
 import re
 import postgresql
 from aiohttp import web
+import control
 
 async def do_GET(request):
 	return web.Response(text='please send post')
@@ -38,16 +40,42 @@ async def do_POST(request):
 	print(repoid)
 	if action == "build":
 		repodir = gitget(url)
-		result = json.dumps(build(repodir))
-		loginsert(repoid, (int(time.time())), result)
+		result = build(repodir)
+		## directory name where build occured contains date time of git get
+		redate = re.compile("(\w*(\d{14}))$")
+		dt = re.match(redate, os.path.basename(repodir)).groups()
+		currently = time.mktime(time.strptime(dt[1], "%Y%m%d%H%M%S"))
+
+		loginsert(repoid, int(currently), result)
 		output = {'status':'ok', 'content':{'text':'built'}}
 	elif action == "retrieve":
 		print('retrieve')
 		output = retrieve(repoid)
+	elif action == "try":
+		output = run(repoid)
 	else:
 		output = {'status':'error', 'content':{'text':'requested action is unknown'}}
 
 	return web.json_response(output)
+def run(repoid):
+	if not os.path.exists('build'):
+		return {"status":"error", "content":{"text":"internal error"}}
+	datetime = db.query("select max (datetime) from logs where repoid = {}".format(str(repoid)))[0][0].strftime("%Y%m%d%H%M%S")
+	url = db.query("select url from repositories where id = {}".format(str(repoid)))[0][0]
+	print(os.path.join("build", os.path.basename(url)+datetime, "binaries"))
+	for f in next(os.walk(os.path.join("build", os.path.basename(url)+datetime, "binaries")))[1]:
+		print(f)
+		with open(f, 'r') as source:
+			if re.match("system\d*\(.*\)*", source):
+				return {"status":"error", "content":{"text":"repo not compatible"}}
+	c = control.findnode()
+	if not c:
+		c = control.initnode()
+
+	output = control.run(c)
+	print(output)
+	return output		
+	
 def gitget(url):
 	if not os.path.exists('build'):
 		os.makedirs('build')
@@ -95,11 +123,12 @@ def build(repodir):
 	formatversion = data["format-version"]
 	appversion = data["app-version"]
 	appbuild = data["app-build"]
-
-
+	
 	result = []
+	os.makedirs(os.path.join(repodir, "binaries"))
 	for f in files:
-		proc = subprocess.Popen([gcc, *cflags, os.path.join(repodir, username, f)], stderr=subprocess.PIPE)
+		filename = os.path.join(repodir, username, f)
+		proc = subprocess.Popen([gcc, *cflags, "-o", os.path.join(repodir, "binaries", f.split(".")[0]+".o"),  filename], stderr=subprocess.PIPE)
 		output = proc.stderr.read().decode()
 		result.append({"filename":f, "output":output})
 
