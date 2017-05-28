@@ -62,12 +62,6 @@ def run(repoid):
 		return {"status":"error", "content":{"text":"internal error"}}
 	datetime = db.query("select max (datetime) from logs where repoid = {}".format(str(repoid)))[0][0].strftime("%Y%m%d%H%M%S")
 	url = db.query("select url from repositories where id = {}".format(str(repoid)))[0][0]
-	print(os.path.join("build", os.path.basename(url)+datetime, "binaries"))
-	for f in next(os.walk(os.path.join("build", os.path.basename(url)+datetime, "binaries")))[1]:
-		print(f)
-		with open(f, 'r') as source:
-			if re.match("system\d*\(.*\)*", source):
-				return {"status":"error", "content":{"text":"repo not compatible"}}
 	c = control.findnode()
 	if not c:
 		c = control.initnode()
@@ -124,8 +118,11 @@ def build(repodir):
 	appversion = data["app-version"]
 	appbuild = data["app-build"]
 	
+	for f in next(os.walk(os.path.join(repodir, username)))[1]:
+		with open(f, 'r') as source:
+			if re.match("system\d*\(.*\)*", source):
+				return {"status":"error", "content":{"text":"repo not compatible"}}
 	result = []
-	os.makedirs(os.path.join(repodir, "binaries"))
 	for f in files:
 		filename = os.path.join(repodir, username, f)
 		proc = subprocess.Popen([gcc, *cflags, "-o", os.path.join(repodir, "binaries", f.split(".")[0]+".o"),  filename], stderr=subprocess.PIPE)
