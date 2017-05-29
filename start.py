@@ -10,8 +10,11 @@ import postgresql
 from aiohttp import web
 import control
 
+# This is used by server to handle GET
 async def do_GET(request):
 	return web.Response(text='please send post')
+
+# This is used to server handle POST
 async def do_POST(request):
 	data = await request.json()
 	print(request.headers)
@@ -27,7 +30,7 @@ async def do_POST(request):
 	match = pattern.match(repository)
 
 	if not match:
-		return web.json_response({"status":"error", "content":{"text":"repo not compatible"}})
+		return web.json_response({"status":"error", "content":{"text":"request is incompatible"}})
 
 	user = match.group('user')
 	repo = match.group('repo')
@@ -40,7 +43,7 @@ async def do_POST(request):
 	print(repoid)
 	if action == "build":
 		repodir = gitget(url)
-		result = build(repodir)
+		result = json.dumps(build(repodir))
 		## directory name where build occured contains date time of git get
 		redate = re.compile("(\w*(\d{14}))$")
 		dt = re.match(redate, os.path.basename(repodir)).groups()
@@ -57,7 +60,11 @@ async def do_POST(request):
 		output = {'status':'error', 'content':{'text':'requested action is unknown'}}
 
 	return web.json_response(output)
+
 def run(repoid):
+	'''Running programs in containers.
+
+	Supposed to return status. Under development'''
 	if not os.path.exists('build'):
 		return {"status":"error", "content":{"text":"internal error"}}
 	datetime = db.query("select max (datetime) from logs where repoid = {}".format(str(repoid)))[0][0].strftime("%Y%m%d%H%M%S")
@@ -71,6 +78,13 @@ def run(repoid):
 	return output		
 	
 def gitget(url):
+	'''Git fetch and pull.
+
+	This function purpose is to download \
+	repository content using provided URL.
+	Returns path where is repository pulled, \
+	string.'''
+
 	if not os.path.exists('build'):
 		os.makedirs('build')
 	reponame = os.path.basename(url)
@@ -83,6 +97,12 @@ def gitget(url):
 	return repodir ## where cloned repository
 
 def build(repodir):
+	'''Repository basic check and build routines.
+
+	This function checks specifications file
+	options and tries to build each file.
+	Returns status and additional stuff.'''
+
 	cflags = ['--std=c89', '-Wall', '-Werror']
 	username = ''
 	for dir in next(os.walk(repodir))[1]: ## должно рабоать по-другому
@@ -129,17 +149,21 @@ def build(repodir):
 		output = proc.stderr.read().decode()
 		result.append({"filename":f, "output":output})
 
-	result = json.dumps(result)
 	return result
 
 def retrieve(repoid, date='latest'):
+	'''Return the log recent build.'''
 	logs = db.query("SELECT log, datetime FROM logs where datetime in \
 	(select max (datetime) from logs where repoid = {});".format(str(repoid)))
 	if logs == []:
 		return {'status':'error', 'content':{'text':'no log for this repo found'}}
 	return {'status':'ok', 'content':{'datetime':str(logs[0][1]), 'text':logs[0][0]}}
 
-db = postgresql.open("pq://builderpy:blogger@localhost/logs")
+if len(sys.argv) < 2:
+	print(sys.argv[0], "pq://<username>:<password>@<host>/<database>")
+	sys.exit()
+
+db = postgresql.open(sys.argv[1])
 loginsert = db.prepare("INSERT INTO logs (repoid, datetime, log) VALUES ($1, to_timestamp($2), $3)")
 repoinsert = db.prepare("insert into repositories (url) values ($1) returning id")
 app = web.Application()
