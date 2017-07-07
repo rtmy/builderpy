@@ -23,23 +23,25 @@ def gitget(url):
 	origin.pull()
 	return repodir # path to cloned repository
 
-def build(repodir):
+def check(repodir):
 	'''Repository basic check and build routines.
 	This function checks specifications file
 	options and tries to build each file.
 	Returns status and additional stuff.'''
 
 	cflags = ['--std=c89', '-Wall', '-Werror']
+	username = str()
 	for dir in next(os.walk(repodir))[1]:
 		if dir != '.git':
 			username = dir
 			break
-
+	if not username:
+		return error('username folder not found')
 	with open(os.path.join(repodir, username, 'build.json')) as data_file: 
 		if data_file:   
 			data = json.load(data_file)
 		else:
-			return {'error':'automatic check is not supported by this repo'}
+			return error('automatic check is not supported by this repo')
 
 	lang = data["lang"]
 	if lang == "lang_C":
@@ -47,7 +49,7 @@ def build(repodir):
 	elif lang == "lang_C++":
 		gcc = 'g++'
 	else:
-		return {'error':'language is not supported'}
+		return error('language is not supported')
 
 	flags = data["flags"]
 	files = data["files"]
@@ -58,8 +60,11 @@ def build(repodir):
 	for f in next(os.walk(os.path.join(repodir, username)))[1]:
 		with open(f, 'r') as source:
 			if re.match("system\d*\(.*\)*", source):
-				return {'error':'repo not compatible'}
+				return error('repo not compatible')
 
+	return {'ok': 'built'}, data, gcc, flags, flags, repodir, username, files
+
+async def build(gcc, cflags, flags, repodir, username, files):
 	result = list()
 	for f in files:
 		filename = os.path.join(repodir, username, f)
@@ -68,5 +73,7 @@ def build(repodir):
                    stderr=subprocess.PIPE)	
 		output = proc.stderr.read().decode()
 		result.append({"filename":f, "output":output})
+	return result
 
-	return {'ok': 'built'}, result, data
+def error(text):
+	return ({'error':error}, None, None, None, None, None, None)
