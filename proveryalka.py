@@ -1,3 +1,9 @@
+import git
+import json
+import os
+import time
+import subprocess
+
 def gitget(url):
 	'''Git fetch and pull.
 
@@ -15,7 +21,7 @@ def gitget(url):
 	origin.fetch()
 	repo.create_head('master', origin.refs.master).set_tracking_branch(origin.refs.master).checkout()
 	origin.pull()
-	return repodir ## where cloned repository
+	return repodir # path to cloned repository
 
 def build(repodir):
 	'''Repository basic check and build routines.
@@ -24,18 +30,16 @@ def build(repodir):
 	Returns status and additional stuff.'''
 
 	cflags = ['--std=c89', '-Wall', '-Werror']
-	username = ''
-	for dir in next(os.walk(repodir))[1]: ## должно рабоать по-другому
+	for dir in next(os.walk(repodir))[1]:
 		if dir != '.git':
 			username = dir
-	if username == '':
-		return {"status":"error", "content":{"text":"repo not compatible"}}
+			break
 
 	with open(os.path.join(repodir, username, 'build.json')) as data_file: 
 		if data_file:   
 			data = json.load(data_file)
 		else:
-			return {'status':'error', 'content':{'text':'automatic check is not supported by this repo'}}
+			return {'error':'automatic check is not supported by this repo'}
 
 	lang = data["lang"]
 	if lang == "lang_C":
@@ -43,8 +47,26 @@ def build(repodir):
 	elif lang == "lang_C++":
 		gcc = 'g++'
 	else:
-		return {'status':'error', 'content':{'text':'language is not supported'}}
+		return {'error':'language is not supported'}
 
-	## проверять флаги
 	flags = data["flags"]
-	for flag in flags:
+	files = data["files"]
+	formatversion = data["format-version"]
+	appversion = data["app-version"]
+	appbuild = data["app-build"]
+	
+	for f in next(os.walk(os.path.join(repodir, username)))[1]:
+		with open(f, 'r') as source:
+			if re.match("system\d*\(.*\)*", source):
+				return {'error':'repo not compatible'}
+
+	result = list()
+	for f in files:
+		filename = os.path.join(repodir, username, f)
+		proc = subprocess.Popen( \
+                   [gcc, *cflags, "-o", os.path.join(repodir, "binaries", f.split(".")[0]+".o"),  filename], \
+                   stderr=subprocess.PIPE)	
+		output = proc.stderr.read().decode()
+		result.append({"filename":f, "output":output})
+
+	return {'ok': 'built'}, result, data
