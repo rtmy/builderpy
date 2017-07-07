@@ -30,6 +30,7 @@ async def create_tables(app):
         log text, \
         config text)')
 
+# Добавляем запись с URL-ом в БД, если не существует
 async def add_repository(engine, url):
 	async with engine.acquire() as conn:
                 async with conn.execute(repository.select( \

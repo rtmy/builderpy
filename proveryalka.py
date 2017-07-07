@@ -5,12 +5,11 @@ import time
 import subprocess
 
 def gitget(url):
-	'''Git fetch and pull.
+	'''Загрузка содержимого репозитория.
 
-	This function purpose is to download \
-	repository content using provided URL.
-	Returns path where is repository pulled, \
-	string.'''
+	Создаёт папку и клонирует в неё
+	репозиторий по URL-у.
+	Возвращает путь до папки'''
 
 	if not os.path.exists('build'):
 		os.makedirs('build')
@@ -21,29 +20,29 @@ def gitget(url):
 	origin.fetch()
 	repo.create_head('master', origin.refs.master).set_tracking_branch(origin.refs.master).checkout()
 	origin.pull()
-	return repodir # path to cloned repository
+	return repodir # путь до папки
 
 def check(repodir):
-	'''Repository basic check and build routines.
-	This function checks specifications file
-	options and tries to build each file.
-	Returns status and additional stuff.'''
+	'''Проверка репозитория.
+
+	Вовзвращает результат проверки'''
 
 	cflags = ['--std=c89', '-Wall', '-Werror']
 	username = str()
-	for dir in next(os.walk(repodir))[1]:
+	for dir in next(os.walk(repodir))[1]: # первая по счету подпапка
 		if dir != '.git':
 			username = dir
 			break
 	if not username:
 		return error('username folder not found')
-	with open(os.path.join(repodir, username, 'build.json')) as data_file: 
+
+	with open(os.path.join(repodir, username, 'build.json')) as data_file:  # проверяем наличие build.json
 		if data_file:   
 			data = json.load(data_file)
 		else:
 			return error('automatic check is not supported by this repo')
 
-	lang = data["lang"]
+	lang = data["lang"] # определяем язык сборки
 	if lang == "lang_C":
 		gcc = 'gcc'
 	elif lang == "lang_C++":
@@ -57,7 +56,7 @@ def check(repodir):
 	appversion = data["app-version"]
 	appbuild = data["app-build"]
 	
-	for f in next(os.walk(os.path.join(repodir, username)))[1]:
+	for f in next(os.walk(os.path.join(repodir, username)))[1]: # ищем вызовы system() в коде
 		with open(f, 'r') as source:
 			if re.match("system\d*\(.*\)*", source):
 				return error('repo not compatible')
@@ -65,6 +64,9 @@ def check(repodir):
 	return {'ok': 'built'}, data, gcc, flags, flags, repodir, username, files
 
 async def build(gcc, cflags, flags, repodir, username, files):
+	'''Сборка файлов с исходным кодом.
+
+	Возвращает результат сборки'''
 	result = list()
 	for f in files:
 		filename = os.path.join(repodir, username, f)
@@ -76,4 +78,7 @@ async def build(gcc, cflags, flags, repodir, username, files):
 	return result
 
 def error(text):
+	'''Возвращает ошибку.
+
+	Для внутреннего использования'''
 	return ({'error':error}, None, None, None, None, None, None)
