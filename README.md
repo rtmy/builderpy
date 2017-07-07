@@ -6,7 +6,7 @@ PostgreSQL >= 9.5.6
 git
 
 ## Как установить:
-Установите [pip](https://pip.pypa.io/en/stable/installing/) для Python 3 и выполните `pip3 install requirements.txt`
+Установите [pip](https://pip.pypa.io/en/stable/installing/) для Python 3 и выполните `pip3 install -r requirements.txt`
 
 ## Как запустить:
 Сконфигурируйте config.yaml и запустите `python3 main.py`
