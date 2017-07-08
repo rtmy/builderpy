@@ -68,12 +68,11 @@ async def build(gcc, cflags, flags, repodir, username, files):
 	'''Сборка файлов с исходным кодом.
 
 	Возвращает результат сборки'''
-	time.sleep(3)
 	result = list()
 	for f in files:
 		filename = os.path.join(repodir, username, f)
-		proc = subprocess.Popen( \
-                   [gcc, *cflags, "-o", os.path.join(repodir, "binaries", f.split(".")[0]+".o"),  filename], \
+		proc = asyncio.create_subprocess_exec( \
+                   [gcc, *cflags, *flags, "-o", os.path.join(repodir, "binaries", f.split(".")[0]+".o"),  filename], \
                    stderr=subprocess.PIPE)	
 		output = proc.stderr.read().decode()
 		result.append({"filename":f, "output":output})
