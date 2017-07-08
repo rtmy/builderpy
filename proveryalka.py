@@ -71,7 +71,7 @@ async def build(gcc, cflags, flags, repodir, username, files):
 	result = list()
 	for f in files:
 		filename = os.path.join(repodir, username, f)
-		proc = asyncio.create_subprocess_exec( \
+		proc = subprocess.Popen( \
                    [gcc, *cflags, *flags, "-o", os.path.join(repodir, "binaries", f.split(".")[0]+".o"),  filename], \
                    stderr=subprocess.PIPE)	
 		output = proc.stderr.read().decode()
