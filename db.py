@@ -1,6 +1,8 @@
 import aiopg.sa
+import datetime
 import sqlalchemy as sa
 import json
+from proveryalka import build
 
 async def init_pg(app):
     conf = app['config']
@@ -29,6 +31,15 @@ async def create_tables(app):
         time timestamp, \
         log text, \
         config text)')
+
+async def add_run(engine, url, config, *args):
+       result = await build(*args)
+       async with engine.acquire() as conn:
+               await conn.execute(run.insert().values( \
+                      log=str(result), \
+                          config=str(config), \
+                     time=datetime.datetime.now(), rep_url=url))
+       print("added run")
 
 # Добавляем запись с URL-ом в БД, если не существует
 async def add_repository(engine, url):

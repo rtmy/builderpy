@@ -20,13 +20,14 @@ def gitget(url):
 	origin.fetch()
 	repo.create_head('master', origin.refs.master).set_tracking_branch(origin.refs.master).checkout()
 	origin.pull()
+	print("git got", url)
 	return repodir # путь до папки
 
 def check(repodir):
 	'''Проверка репозитория.
 
 	Вовзвращает результат проверки'''
-
+	print("checking", repodir)
 	cflags = ['--std=c89', '-Wall', '-Werror']
 	username = str()
 	for dir in next(os.walk(repodir))[1]: # первая по счету подпапка
@@ -67,6 +68,7 @@ async def build(gcc, cflags, flags, repodir, username, files):
 	'''Сборка файлов с исходным кодом.
 
 	Возвращает результат сборки'''
+	time.sleep(3)
 	result = list()
 	for f in files:
 		filename = os.path.join(repodir, username, f)
@@ -75,6 +77,7 @@ async def build(gcc, cflags, flags, repodir, username, files):
                    stderr=subprocess.PIPE)	
 		output = proc.stderr.read().decode()
 		result.append({"filename":f, "output":output})
+	print("built", username)
 	return result
 
 def error(text):
