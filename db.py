@@ -29,15 +29,15 @@ async def create_tables(app):
         (run_id serial primary key, \
         rep_url text references repository(rep_url), \
         time timestamp, \
-        log text, \
-        config text)')
+        log jsonb, \
+        config jsonb)')
 
 async def add_run(engine, url, config, *args):
        result = await build(*args)
        async with engine.acquire() as conn:
                await conn.execute(run.insert().values( \
-                      log=str(result), \
-                          config=str(config), \
+                      log=result, \
+                          config=json.dumps(config), \
                      time=datetime.datetime.now(), rep_url=url))
        print("added run")
 
@@ -57,7 +57,7 @@ run = sa.Table('run', ma,
     sa.Column('run_id', sa.Integer, primary_key=True),
     sa.Column('rep_url', sa.String(), sa.ForeignKey("repository.rep_url"), \
             nullable=False),
-    sa.Column('log', sa.String(), nullable=True),
+    sa.Column('log', sa.dialects.postgresql.JSONB(), nullable=True),
     sa.Column('config', sa.String(), nullable=False),
     sa.Column('time', sa.DateTime(), nullable=False),
 )

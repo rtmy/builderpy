@@ -30,6 +30,7 @@ async def recent_handler(request):
                       for res in await rp.fetchall():
                              response.append({'url': res.rep_url, \
            'log': res.log, 'config': res.config, 'time': res.time.strftime("%c")})
+        print(response)
         return web.json_response(response)
 
 async def repository_handler(request):
