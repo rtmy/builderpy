@@ -4,7 +4,7 @@ import os
 import time
 import subprocess
 
-def gitget(url):
+def gitget(server, user, reponame):
 	'''Загрузка содержимого репозитория.
 
 	Создаёт папку и клонирует в неё
@@ -13,14 +13,13 @@ def gitget(url):
 
 	if not os.path.exists('build'):
 		os.makedirs('build')
-	reponame = os.path.basename(url)
 	repodir = os.path.join(os.getcwd(), 'build', reponame + time.strftime("%Y%m%d%H%M%S"))
 	repo = git.Repo.init(repodir)
-	origin = repo.create_remote('origin', url)
+	origin = repo.create_remote('origin', 'git@' + server + ':' + user + '/' +reponame)
 	origin.fetch()
 	repo.create_head('master', origin.refs.master).set_tracking_branch(origin.refs.master).checkout()
 	origin.pull()
-	print("git got", url)
+	print("git got", server, user, reponame)
 	return repodir # путь до папки
 
 def check(repodir):
