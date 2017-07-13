@@ -6,6 +6,7 @@ PostgreSQL >= 9.5.6
 git
 
 ## Как установить:
+[Добавьте новый SSH-ключ](https://help.github.com/articles/connecting-to-github-with-ssh/) в ваш аккаунт.  
 Установите [pip](https://pip.pypa.io/en/stable/installing/) для Python 3 и выполните `pip3 install -r requirements.txt`
 
 ## Как запустить:
@@ -16,6 +17,5 @@ git
 /build?url=\<URL\> - собрать код в репозитории по URL
 
 ## Что планируется:
-* Авторизация в гитхаб
 * Очистка исходников
 * Фильтрация вывода
