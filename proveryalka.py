@@ -30,11 +30,11 @@ def check(repodir):
 	print("checking", repodir)
 	cflags = ['--std=c89', '-Wall', '-Werror']
 	dirs =  set(next(os.walk(repodir))[1])
-	username = (dirs - {'.git'}).pop()
-	
-	if not username:
+	try:
+		username = (dirs - {'.git'}).pop()
+	except KeyError:	
 		return error('username folder not found')
-	print(username)
+
 	with open(os.path.join(repodir, username, 'build.json')) as data_file:  # проверяем наличие build.json
 		if data_file:   
 			data = json.load(data_file)
@@ -81,4 +81,4 @@ def error(text):
 	'''Возвращает ошибку.
 
 	Для внутреннего использования'''
-	return ({'error':error}, None, None, None, None, None, None)
+	return ({'error':text}, None, None, None, None, None, None)
